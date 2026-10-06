@@ -5,11 +5,11 @@ import {
   Eye,
   FileText,
   Pencil,
+  PiggyBank,
   Plus,
   Receipt,
   RotateCcw,
   Search,
-  TrendingUp,
   CircleDollarSign,
   Trash2,
   XCircle,
@@ -19,16 +19,18 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { Badge, Button, Card, EmptyState, Input, Select, cx } from "../components/ui";
 import { Pagination, usePagination } from "../components/Pagination";
 import { StatTile } from "../components/StatTile";
+import { RangePills } from "../components/RangePills";
 import { SaleDialog } from "../components/SaleDialog";
 import { PaymentDialog } from "../components/PaymentDialog";
 import { CustomerDetailDialog } from "../components/CustomerDetailDialog";
 import { PasscodeConfirmDialog } from "../components/PasscodeConfirmDialog";
 import { useSettings } from "../lib/settings";
 import { useT } from "../lib/i18n";
+import { useRangeFilter } from "../lib/dateRange";
 import { gradientFor, initialOf } from "../lib/avatar";
 import { errorMessage, useToast } from "../lib/toast";
 import { useAuthedMutation, useAuthedQuery } from "../lib/session";
-import { CURRENCY_CODE, plural, startOfLocalDay } from "../lib/format";
+import { CURRENCY_CODE, plural } from "../lib/format";
 import { downloadReceipt, downloadReceipts, previewReceipt } from "../lib/pdf";
 import type { ReceiptOrder } from "../lib/receipt";
 import { customerKey } from "../../convex/shared";
@@ -70,8 +72,6 @@ const PAYMENT_TONE: Record<string, "neutral" | "good" | "warning" | "critical"> 
   due: "critical",
 };
 
-const DAY = 24 * 60 * 60 * 1000;
-
 /*
   What a sale was actually worth.
 
@@ -97,6 +97,12 @@ export function SalesPage() {
   const toast = useToast();
   const orders = useAuthedQuery(api.orders.list, {});
   const customers = useAuthedQuery(api.customers.list) ?? [];
+  /*
+    Only `windowCosts` is used from here — the per-range operating costs that
+    turn gross profit into net, scoped the same way `range` scopes the sales
+    below.
+  */
+  const dashboardData = useAuthedQuery(api.dashboard.overview);
   const confirmOrder = useAuthedMutation(api.orders.confirm);
   const cancelOrder = useAuthedMutation(api.orders.cancel);
   const removeOrder = useAuthedMutation(api.orders.remove);
@@ -118,7 +124,7 @@ export function SalesPage() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const [rangeDays, setRangeDays] = useState(0);
+  const range = useRangeFilter("ac.range.sales");
   const [addOpen, setAddOpen] = useState(false);
   /*
     One piece of state for every passcode-gated action on a sale, so the four
@@ -131,15 +137,10 @@ export function SalesPage() {
   const [paying, setPaying] = useState<Doc<"orders"> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const from = useMemo(
-    () => (rangeDays > 0 ? startOfLocalDay(Date.now() - (rangeDays - 1) * DAY) : 0),
-    [rangeDays],
-  );
-
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (orders ?? []).filter((o) => {
-      if (o.orderedAt < from) return false;
+      if (o.orderedAt < range.since || o.orderedAt >= range.untilExclusive) return false;
       if (status && o.orderStatus !== status) return false;
       if (!term) return true;
       return (
@@ -149,7 +150,7 @@ export function SalesPage() {
         o.items.some((i) => i.productName.toLowerCase().includes(term))
       );
     });
-  }, [orders, search, status, from]);
+  }, [orders, search, status, range.since, range.untilExclusive]);
 
   /*
     Totals cover every sale the filters leave on screen, not the page being
@@ -173,16 +174,23 @@ export function SalesPage() {
     return { revenue, cost, profit: revenue - cost, booked, pending };
   }, [rows]);
 
-  const pager = usePagination(rows, `${search}|${status}|${rangeDays}`, 25);
-  const bengali = lang === "bn";
+  /*
+    Net profit takes the same operating costs the Dashboard takes off gross
+    profit — bounded to this same range, so the figure agrees with the
+    Dashboard by construction rather than by coincidence.
+  */
+  const operatingCost = useMemo(() => {
+    if (!dashboardData) return 0;
+    let sum = 0;
+    for (const c of dashboardData.windowCosts) {
+      if (c.spentAt >= range.since && c.spentAt < range.untilExclusive) sum += c.amount;
+    }
+    return sum;
+  }, [dashboardData, range.since, range.untilExclusive]);
+  const netProfit = totals.profit - operatingCost;
 
-  const RANGES = [
-    { days: 0, label: t("dash.allTime") },
-    { days: 7, label: "7d" },
-    { days: 30, label: "30d" },
-    { days: 90, label: "90d" },
-    { days: 365, label: "12m" },
-  ];
+  const pager = usePagination(rows, `${search}|${status}|${range.since}|${range.until}`, 25);
+  const bengali = lang === "bn";
 
   function exportCsv() {
     const header = [
@@ -336,19 +344,6 @@ export function SalesPage() {
             aria-label={t("common.search")}
           />
         </div>
-        <div className="w-full sm:w-36">
-          <Select
-            value={rangeDays}
-            onChange={(e) => setRangeDays(Number(e.target.value))}
-            aria-label={t("common.date")}
-          >
-            {RANGES.map((r) => (
-              <option key={r.days} value={r.days}>
-                {r.label}
-              </option>
-            ))}
-          </Select>
-        </div>
         <div className="w-full sm:w-48">
           <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={t("orders.status")}>
             <option value="">{t("orders.allStatuses")}</option>
@@ -360,16 +355,24 @@ export function SalesPage() {
         </div>
       </div>
 
+      {/* One filter row, above everything it scopes — same pattern as the Dashboard. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[13.5px] text-ink-3">
+          {t("dash.showing")} <span className="font-semibold text-ink-2">{range.activeLabel.full}</span>
+        </p>
+        <RangePills range={range} />
+      </div>
+
       <div className="ac-stagger grid gap-4 sm:grid-cols-3">
         <StatTile
           hero
-          accent="violet"
-          label={t("sales.profit")}
-          value={totals.profit < 0 ? `−${fmt(Math.abs(totals.profit))}` : fmt(totals.profit)}
-          icon={<TrendingUp size={17} />}
+          accent="emerald"
+          label={t("dash.netProfit")}
+          value={netProfit < 0 ? `−${fmt(Math.abs(netProfit))}` : fmt(netProfit)}
+          icon={<PiggyBank size={17} />}
           sub={
             totals.revenue > 0
-              ? `${fmtPercent(totals.profit / totals.revenue)} ${t("dash.margin")}`
+              ? `${fmtPercent(netProfit / totals.revenue)} ${t("dash.margin")}`
               : undefined
           }
         />
@@ -395,10 +398,10 @@ export function SalesPage() {
         <Card>
           <EmptyState
             icon={<Receipt size={24} />}
-            title={search || status || rangeDays ? t("orders.noMatches") : t("sales.none")}
+            title={(orders ?? []).length > 0 ? t("orders.noMatches") : t("sales.none")}
             body={t("sales.noneBody")}
             action={
-              !search && !status && !rangeDays ? (
+              (orders ?? []).length === 0 ? (
                 <Button variant="primary" onClick={() => setAddOpen(true)}>
                   <Plus size={17} />
                   {t("sales.newSale")}

@@ -300,28 +300,34 @@ export const update = mutation({
   },
 });
 
-/** Add or remove units without touching the rest of the product. */
-export const restock = mutation({
-  args: { token: v.string(), id: v.id("products"), delta: v.number() },
+/**
+ * Sets stock to an exact count, rather than nudging it by one — so it needs
+ * the passcode the way other destructive-ish corrections do (nothing stops
+ * the new count from quietly erasing units a +/- stepper would have caught
+ * one click at a time).
+ */
+export const setStock = mutation({
+  args: { token: v.string(), id: v.id("products"), quantity: v.number(), passcode: v.string() },
   handler: async (ctx, args) => {
     await requireSession(ctx, args.token);
+    await verifyPasscode(ctx, args.passcode);
     const product = await ctx.db.get(args.id);
     if (!product) throw new ConvexError("That product no longer exists.");
-    if (!Number.isInteger(args.delta)) throw new ConvexError("Use whole units.");
+    if (!Number.isInteger(args.quantity) || args.quantity < 0) {
+      throw new ConvexError("Stock must be a whole number, zero or more.");
+    }
     /*
-      A product with sizes has no stock of its own to nudge — `quantity` is
+      A product with sizes has no stock of its own to set — `quantity` is
       computed from the sizes (their sum in "separate" mode, the admin's own
-      pool in "shared" mode), and bumping it directly here would disagree
+      pool in "shared" mode), and overwriting it directly here would disagree
       with that the moment the page next recomputed it. The UI never offers
       this for such a product; this is the same rule enforced server-side,
-      since the mutation itself has no other way to know which size moved.
+      since the mutation itself has no other way to know which size this was.
     */
     if (product.variants?.length) {
       throw new ConvexError("This product sells in sizes — edit the size's own stock instead.");
     }
-    const next = product.quantity + args.delta;
-    if (next < 0) throw new ConvexError("Stock cannot go below zero.");
-    await ctx.db.patch(args.id, { quantity: next });
+    await ctx.db.patch(args.id, { quantity: args.quantity });
   },
 });
 

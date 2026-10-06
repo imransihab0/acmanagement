@@ -221,6 +221,13 @@ export default defineSchema({
       many lots it is actually proof of.
     */
     mediaIds: v.optional(v.array(v.id("vendorMedia"))),
+    /*
+      True only for a lot logged through the Costs page's "Product purchase
+      cost" tab rather than the ordinary "Add stock lot" flow on Products.
+      Both write the same row — this just marks the ones that also moved the
+      Investment counter, so removing one later knows to move it back.
+    */
+    investment: v.optional(v.boolean()),
   })
     .index("by_purchasedAt", ["purchasedAt"])
     .index("by_product", ["productId"])
@@ -484,4 +491,68 @@ export default defineSchema({
   })
     .index("by_soldAt", ["soldAt"])
     .index("by_product", ["productId"]),
+
+  /*
+    Someone who has taken training at BD Mushroom. A profile, not a ledger
+    entry: most fields are optional because a trainee is worth adding the
+    moment training starts, before anyone has typed in an NID number or a
+    blood group — the full picture fills in over time, through edits.
+  */
+  trainees: defineTable({
+    name: v.string(),
+    phone: v.optional(v.string()),
+    photoId: v.optional(v.id("_storage")),
+    fatherName: v.optional(v.string()),
+    fatherPhone: v.optional(v.string()),
+    motherName: v.optional(v.string()),
+    motherPhone: v.optional(v.string()),
+    bloodGroup: v.optional(v.string()),
+    dateOfBirth: v.optional(v.number()),
+    nationality: v.optional(v.string()),
+    nidNumber: v.optional(v.string()),
+    hometown: v.optional(v.string()),
+    currentAddress: v.optional(v.string()),
+    religion: v.optional(v.string()),
+    /** Shown only when actually provided — none of these are required. */
+    facebookUrl: v.optional(v.string()),
+    whatsapp: v.optional(v.string()),
+    youtubeUrl: v.optional(v.string()),
+    twitterUrl: v.optional(v.string()),
+    tiktokUrl: v.optional(v.string()),
+    linkedinUrl: v.optional(v.string()),
+    note: v.optional(v.string()),
+    /** Set the first time a certificate is generated for this trainee. */
+    certificateIssuedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_createdAt", ["createdAt"]),
+
+  /*
+    One lesson allocated to one trainee. Per-trainee rather than a shared
+    curriculum, because "every lesson allocated to them" (the condition for a
+    certificate) only means something if different trainees can be allocated
+    different lessons.
+  */
+  traineeLessons: defineTable({
+    traineeId: v.id("trainees"),
+    name: v.string(),
+    completed: v.boolean(),
+    completedAt: v.optional(v.number()),
+    /** Allocation order, so the checklist reads in the order lessons were added. */
+    order: v.number(),
+    createdAt: v.number(),
+  }).index("by_trainee", ["traineeId"]),
+
+  /*
+    A trainee's gallery — class photos, mostly, kept as proof training
+    actually happened. Flat rather than foldered like a vendor's: there is no
+    equivalent of a vendor's TIN/trade-license/receipts split here, just
+    photos of one person's classes.
+  */
+  traineeMedia: defineTable({
+    traineeId: v.id("trainees"),
+    storageId: v.id("_storage"),
+    kind: v.union(v.literal("image"), v.literal("video")),
+    fileName: v.string(),
+    createdAt: v.number(),
+  }).index("by_trainee", ["traineeId"]),
 });

@@ -10,8 +10,14 @@ export type Delta = {
 
 export type TileAccent = "violet" | "emerald" | "amber" | "sky";
 
+/*
+  "violet" renders as bdmushroom's crimson, not the brand gradient
+  (--grad-violet) — that gradient is green now, the same as "emerald", and
+  a page that uses both categories on one grid needs them to stay two
+  different colours.
+*/
 const GRADIENTS: Record<TileAccent, string> = {
-  violet: "var(--grad-violet)",
+  violet: "var(--grad-crimson)",
   emerald: "var(--grad-emerald)",
   amber: "var(--grad-amber)",
   sky: "var(--grad-sky)",

@@ -1,6 +1,8 @@
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { requireSession, verifyPasscode } from "./auth";
+import { adjustInvestment } from "./investment";
 
 /*
   Profit allocation.
@@ -101,46 +103,93 @@ function validateBatch(quantity: number, unitCost: number, unitPrice?: number) {
   }
 }
 
-export const addBatch = mutation({
+const batchArgs = {
+  productId: v.id("products"),
+  label: v.string(),
+  purchasedAt: v.number(),
+  quantity: v.number(),
+  unitCost: v.number(),
+  unitPrice: v.optional(v.number()),
+  note: v.optional(v.string()),
+  vendorId: v.optional(v.id("vendors")),
+};
+
+async function insertBatch(
+  ctx: MutationCtx,
   args: {
-    token: v.string(),
-    productId: v.id("products"),
-    label: v.string(),
-    purchasedAt: v.number(),
-    quantity: v.number(),
-    unitCost: v.number(),
-    unitPrice: v.optional(v.number()),
-    note: v.optional(v.string()),
-    vendorId: v.optional(v.id("vendors")),
+    productId: Id<"products">;
+    label: string;
+    purchasedAt: number;
+    quantity: number;
+    unitCost: number;
+    unitPrice?: number;
+    note?: string;
+    vendorId?: Id<"vendors">;
   },
+  investment: boolean,
+) {
+  const product = await ctx.db.get(args.productId);
+  if (!product) throw new ConvexError("That product no longer exists.");
+  validateBatch(args.quantity, args.unitCost, args.unitPrice);
+  if (args.vendorId && !(await ctx.db.get(args.vendorId))) {
+    throw new ConvexError("That vendor no longer exists.");
+  }
+
+  // A lot is stock arriving, so it moves the product's stock with it.
+  // Without this the app holds two independent answers to "how many do I
+  // have": one the sales decrement, one that only feeds projected profit.
+  await ctx.db.patch(args.productId, { quantity: product.quantity + args.quantity });
+
+  const note = (args.note ?? "").trim();
+  const id = await ctx.db.insert("stockBatches", {
+    productId: args.productId,
+    productName: product.name,
+    label: args.label.trim() || "Stock",
+    purchasedAt: args.purchasedAt,
+    quantity: args.quantity,
+    // A lot starts with everything it was bought with still in it.
+    remaining: args.quantity,
+    unitCost: args.unitCost,
+    unitPrice: args.unitPrice,
+    note: note ? note : undefined,
+    vendorId: args.vendorId,
+    investment: investment || undefined,
+  });
+  if (investment) await adjustInvestment(ctx, args.quantity * args.unitCost);
+  return id;
+}
+
+export const addBatch = mutation({
+  args: { token: v.string(), ...batchArgs },
   handler: async (ctx, args) => {
     await requireSession(ctx, args.token);
-    const product = await ctx.db.get(args.productId);
-    if (!product) throw new ConvexError("That product no longer exists.");
-    validateBatch(args.quantity, args.unitCost, args.unitPrice);
-    if (args.vendorId && !(await ctx.db.get(args.vendorId))) {
-      throw new ConvexError("That vendor no longer exists.");
-    }
+    return await insertBatch(ctx, args, false);
+  },
+});
 
-    // A lot is stock arriving, so it moves the product's stock with it.
-    // Without this the app holds two independent answers to "how many do I
-    // have": one the sales decrement, one that only feeds projected profit.
-    await ctx.db.patch(args.productId, { quantity: product.quantity + args.quantity });
+/*
+  Same write as `addBatch` — a lot still arrives and stock still moves — but
+  triggered from the Costs page's "Product purchase cost" tab instead of
+  Products. The difference is what else moves: this is money the shopkeeper
+  thinks of as a cost, so it adds to Investment instead of to `costs` (which
+  would double it against Total cost, since a lot's price is recovered
+  through margin, not booked as an expense).
+*/
+export const addPurchaseCostBatch = mutation({
+  args: { token: v.string(), ...batchArgs },
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
+    return await insertBatch(ctx, args, true);
+  },
+});
 
-    const note = (args.note ?? "").trim();
-    return await ctx.db.insert("stockBatches", {
-      productId: args.productId,
-      productName: product.name,
-      label: args.label.trim() || "Stock",
-      purchasedAt: args.purchasedAt,
-      quantity: args.quantity,
-      // A lot starts with everything it was bought with still in it.
-      remaining: args.quantity,
-      unitCost: args.unitCost,
-      unitPrice: args.unitPrice,
-      note: note ? note : undefined,
-      vendorId: args.vendorId,
-    });
+/** Lots logged through the Investment flow, newest first. */
+export const purchaseCostBatches = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
+    const rows = await ctx.db.query("stockBatches").withIndex("by_purchasedAt").order("desc").collect();
+    return rows.filter((r) => r.investment);
   },
 });
 
@@ -230,6 +279,9 @@ export const removeBatch = mutation({
         quantity: Math.max(0, product.quantity - left),
       });
     }
+    // The full amount it added, not just what is left — the rest already
+    // came back out of Investment when it sold (see sales.ts / orders.ts).
+    if (batch.investment) await adjustInvestment(ctx, -(batch.quantity * batch.unitCost));
     await ctx.db.delete(args.id);
   },
 });

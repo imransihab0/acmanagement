@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { requireSession, verifyPasscode } from "./auth";
+import { adjustInvestment } from "./investment";
 
 export const list = query({
   args: { token: v.string(), limit: v.optional(v.number()) },
@@ -51,7 +52,7 @@ export const create = mutation({
 
     const buyer = (args.buyer ?? "").trim();
     const note = (args.note ?? "").trim();
-    return await ctx.db.insert("sales", {
+    const id = await ctx.db.insert("sales", {
       productId: args.productId,
       productName: product.name,
       unitCost: product.costPrice,
@@ -61,6 +62,10 @@ export const create = mutation({
       note: note ? note : undefined,
       soldAt: args.soldAt ?? Date.now(),
     });
+    // A sale recovers money that was sitting in stock, so it comes off
+    // Investment the same way buying stock added to it.
+    await adjustInvestment(ctx, -(product.costPrice * args.quantity));
+    return id;
   },
 });
 
@@ -107,6 +112,8 @@ export const update = mutation({
       note: note ? note : undefined,
       soldAt: args.soldAt ?? sale.soldAt,
     });
+    // More units sold takes more back out of Investment; fewer gives some back.
+    if (delta !== 0) await adjustInvestment(ctx, -(delta * sale.unitCost));
   },
 });
 
@@ -122,6 +129,8 @@ export const remove = mutation({
     if (product) {
       await ctx.db.patch(sale.productId, { quantity: product.quantity + sale.quantity });
     }
+    // The sale no longer happened, so what it took out of Investment comes back.
+    await adjustInvestment(ctx, sale.unitCost * sale.quantity);
     await ctx.db.delete(args.id);
   },
 });

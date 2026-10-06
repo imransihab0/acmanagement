@@ -15,6 +15,7 @@ import type * as customers from "../customers.js";
 import type * as danger from "../danger.js";
 import type * as dashboard from "../dashboard.js";
 import type * as fixedCosts from "../fixedCosts.js";
+import type * as investment from "../investment.js";
 import type * as orders from "../orders.js";
 import type * as otp from "../otp.js";
 import type * as products from "../products.js";
@@ -22,6 +23,7 @@ import type * as profit from "../profit.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
 import type * as shared from "../shared.js";
+import type * as trainees from "../trainees.js";
 import type * as vendors from "../vendors.js";
 
 import type {
@@ -38,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   danger: typeof danger;
   dashboard: typeof dashboard;
   fixedCosts: typeof fixedCosts;
+  investment: typeof investment;
   orders: typeof orders;
   otp: typeof otp;
   products: typeof products;
@@ -45,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   sales: typeof sales;
   seed: typeof seed;
   shared: typeof shared;
+  trainees: typeof trainees;
   vendors: typeof vendors;
 }>;
 

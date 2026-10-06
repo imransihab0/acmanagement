@@ -64,11 +64,17 @@
   --series-1: #7c3aed;
   --series-2: #059669;
 
-  --accent: #7c3aed;
-  --accent-strong: #6d28d9;
+  /*
+    Brand green, lifted from bdmushroom.com's own palette (#27b95d / #224f38)
+    — the shop's actual site, so the dashboard reads as the same business
+    rather than a generic purple SaaS. --accent-strong is the site's real
+    deep forest green, not just a darkened accent.
+  */
+  --accent: #15803d;
+  --accent-strong: #224f38;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(124, 58, 237, 0.1);
-  --accent-soft-strong: rgba(124, 58, 237, 0.16);
+  --accent-soft: rgba(21, 128, 61, 0.1);
+  --accent-soft-strong: rgba(21, 128, 61, 0.16);
 
   --good: #059669;
   --good-ink: #047857;
@@ -85,13 +91,13 @@
   /* Filled-button red. --critical is tuned for text, and white on it fails. */
   --critical-solid: #dc2626;
 
-  --ring: rgba(124, 58, 237, 0.28);
+  --ring: rgba(21, 128, 61, 0.28);
 
   /* Warm-tinted shadows — a cool grey shadow on cream reads as grime. */
   --shadow-sm: 0 1px 2px rgba(72, 55, 34, 0.06);
   --shadow-card: 0 1px 3px rgba(72, 55, 34, 0.07), 0 8px 24px -12px rgba(72, 55, 34, 0.16);
   --shadow-pop: 0 24px 60px -12px rgba(60, 45, 28, 0.3), 0 4px 12px rgba(60, 45, 28, 0.12);
-  --shadow-hero: 0 12px 32px -8px rgba(124, 58, 237, 0.38);
+  --shadow-hero: 0 12px 32px -8px rgba(21, 128, 61, 0.38);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -115,11 +121,12 @@
     --series-1: #8b5cf6;
     --series-2: #0da97d;
 
-    --accent: #8b5cf6;
-    --accent-strong: #7c3aed;
+    /* Brighter against near-black than the light-mode accent, same bdmushroom green family. */
+    --accent: #1f9654;
+    --accent-strong: #27b95d;
     --accent-ink: #ffffff;
-    --accent-soft: rgba(139, 92, 246, 0.16);
-    --accent-soft-strong: rgba(139, 92, 246, 0.24);
+    --accent-soft: rgba(31, 150, 84, 0.16);
+    --accent-soft-strong: rgba(31, 150, 84, 0.24);
 
     --good: #0da97d;
     --good-ink: #34d399;
@@ -133,12 +140,12 @@
     --critical-soft: rgba(240, 97, 109, 0.16);
     --critical-solid: #dc2626;
 
-    --ring: rgba(139, 92, 246, 0.4);
+    --ring: rgba(31, 150, 84, 0.4);
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.6), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
     --shadow-pop: 0 24px 60px -12px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.6);
-    --shadow-hero: 0 12px 32px -8px rgba(109, 40, 217, 0.55);
+    --shadow-hero: 0 12px 32px -8px rgba(31, 150, 84, 0.55);
   }
 }
 
@@ -162,11 +169,11 @@
   --series-1: #8b5cf6;
   --series-2: #0da97d;
 
-  --accent: #8b5cf6;
-  --accent-strong: #7c3aed;
+  --accent: #1f9654;
+  --accent-strong: #27b95d;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(139, 92, 246, 0.16);
-  --accent-soft-strong: rgba(139, 92, 246, 0.24);
+  --accent-soft: rgba(31, 150, 84, 0.16);
+  --accent-soft-strong: rgba(31, 150, 84, 0.24);
 
   --good: #0da97d;
   --good-ink: #34d399;
@@ -180,12 +187,12 @@
   --critical-soft: rgba(240, 97, 109, 0.16);
   --critical-solid: #dc2626;
 
-  --ring: rgba(139, 92, 246, 0.4);
+  --ring: rgba(31, 150, 84, 0.4);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.6), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
   --shadow-pop: 0 24px 60px -12px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.6);
-  --shadow-hero: 0 12px 32px -8px rgba(109, 40, 217, 0.55);
+  --shadow-hero: 0 12px 32px -8px rgba(31, 150, 84, 0.55);
 }
 
 /*
@@ -194,10 +201,22 @@
   white text on top of them.
 */
 :root {
-  --grad-violet: linear-gradient(135deg, #7c3aed 0%, #a21caf 100%);
+  /*
+    Both stops stay dark enough to clear 4.5:1 against the white text sitting
+    on them — the bright half of bdmushroom's green (#27b95d) alone did not.
+  */
+  --grad-violet: linear-gradient(135deg, #15803d 0%, #224f38 100%);
   --grad-emerald: linear-gradient(135deg, #047857 0%, #0f766e 100%);
   --grad-amber: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
   --grad-sky: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%);
+  /*
+    bdmushroom's second brand colour, the crimson under the wordmark — stands
+    in for the "violet" stat-tile category specifically, so that category no
+    longer renders as a second, slightly different green sitting next to the
+    "emerald" category on the same grid (Dashboard, Profit) with nothing to
+    tell them apart by colour.
+  */
+  --grad-crimson: linear-gradient(135deg, #db143c 0%, #a10f2e 100%);
 }
 
 @theme inline {

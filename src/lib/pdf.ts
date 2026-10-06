@@ -1,4 +1,5 @@
 import { drawReceipt, type ReceiptOrder, type ShopInfo } from "./receipt";
+import { drawCertificate, type CertificateTrainee } from "./certificate";
 
 /*
   Receipt PDF generation, in the browser.
@@ -150,6 +151,55 @@ async function buildDoc(orders: ReceiptOrder[], shop: ShopInfo, bengali: boolean
   doc.end();
 
   return done;
+}
+
+async function buildCertificateDoc(trainee: CertificateTrainee, shop: ShopInfo) {
+  const [pdfkit, fonts, brand] = await Promise.all([
+    withRetry(() => import("pdfkit")),
+    loadFonts(),
+    loadBrand(),
+  ]);
+  const PDFDocument = pdfkit.default;
+
+  const doc = new PDFDocument({
+    size: "A4",
+    layout: "landscape",
+    margin: 0,
+    font: null,
+  } as never);
+
+  doc.registerFont("bn", new Uint8Array(fonts.regular) as never);
+  doc.registerFont("bnb", new Uint8Array(fonts.bold) as never);
+
+  const chunks: BlobPart[] = [];
+  const stream = doc as unknown as {
+    on(event: "data" | "end" | "error", handler: (chunk?: unknown) => void): void;
+  };
+  const done = new Promise<Blob>((resolve, reject) => {
+    stream.on("data", (chunk) => chunks.push(chunk as BlobPart));
+    stream.on("end", () => resolve(new Blob(chunks, { type: "application/pdf" })));
+    stream.on("error", (err) => reject(err));
+  });
+
+  const branded: ShopInfo = { ...shop, logo: shop.logo ?? brand.logo, seal: shop.seal ?? brand.seal };
+  drawCertificate(doc as never, trainee, branded);
+  doc.end();
+
+  return done;
+}
+
+/** A completion certificate for one trainee — opens in a new tab to view or print. */
+export async function previewCertificate(trainee: CertificateTrainee, options: { shop?: ShopInfo } = {}) {
+  const blob = await buildCertificateDoc(trainee, options.shop ?? SHOP);
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** Saves the certificate as a file instead of opening it. */
+export async function downloadCertificate(trainee: CertificateTrainee, options: { shop?: ShopInfo } = {}) {
+  const blob = await buildCertificateDoc(trainee, options.shop ?? SHOP);
+  save(blob, `${trainee.name.replace(/\s+/g, "-")}-certificate.pdf`);
 }
 
 function save(blob: Blob, filename: string) {

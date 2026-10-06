@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useAction, useMutation } from "convex/react";
-import { KeyRound, Loader2, Mail, ShieldCheck, Wallet } from "lucide-react";
+import { KeyRound, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Button, Input, cx } from "./ui";
 import { useSession } from "../lib/session";
@@ -230,11 +230,8 @@ function SignInScreen({
     <div className="flex min-h-full items-center justify-center bg-page p-4">
       <div className="ac-pop-in w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
-          <span
-            className="mb-4 flex size-14 items-center justify-center rounded-2xl text-white shadow-[var(--shadow-hero)]"
-            style={{ background: "var(--grad-violet)" }}
-          >
-            <Wallet size={24} />
+          <span className="mb-4 flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-white p-1.5 shadow-[var(--shadow-hero)]">
+            <img src="/brand/bdmushroom-seal.png" alt="" className="size-full object-contain" />
           </span>
           <h1 className="text-[22px] leading-7 font-bold tracking-tight text-ink">Ledger</h1>
           <p className="mt-1.5 max-w-xs text-[13.5px] leading-6 text-ink-3">

@@ -19,6 +19,7 @@ import { RangePills } from "../components/RangePills";
 import { Pagination, SortSelect, usePagination } from "../components/Pagination";
 import { CostDialog } from "../components/CostDialog";
 import { FixedCostsSection } from "../components/FixedCostsSection";
+import { ProductPurchaseCostSection } from "../components/ProductPurchaseCostSection";
 import { PasscodeConfirmDialog } from "../components/PasscodeConfirmDialog";
 import { useSettings } from "../lib/settings";
 import { useT } from "../lib/i18n";
@@ -30,7 +31,7 @@ import { useAuthedMutation, useAuthedQuery } from "../lib/session";
 import { usePersistedState } from "../lib/persist";
 
 type SortKey = "newest" | "oldest" | "highest" | "lowest";
-type Tab = "regular" | "fixed";
+type Tab = "regular" | "fixed" | "purchase";
 
 export function CostsPage() {
   const { fmt, fmtNum, fmtDateTime } = useSettings();
@@ -130,7 +131,11 @@ export function CostsPage() {
             {t("costs.title")}
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-3 sm:text-[14px]">
-            {tab === "regular" ? t("costs.subtitle") : t("fixedCosts.subtitle")}
+            {tab === "regular"
+              ? t("costs.subtitle")
+              : tab === "fixed"
+                ? t("fixedCosts.subtitle")
+                : t("investment.subtitle")}
           </p>
         </div>
         {tab === "regular" && (
@@ -153,7 +158,7 @@ export function CostsPage() {
       </div>
 
       <div className="flex w-full gap-2 rounded-xl bg-surface-2 p-1 sm:w-fit">
-        {(["regular", "fixed"] as const).map((key) => (
+        {(["regular", "fixed", "purchase"] as const).map((key) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -163,12 +168,13 @@ export function CostsPage() {
               tab === key ? "bg-surface text-ink shadow-[var(--shadow-sm)]" : "text-ink-3 hover:text-ink-2",
             )}
           >
-            {key === "regular" ? t("costs.tabRegular") : t("costs.tabFixed")}
+            {key === "regular" ? t("costs.tabRegular") : key === "fixed" ? t("costs.tabFixed") : t("costs.tabPurchase")}
           </button>
         ))}
       </div>
 
       {tab === "fixed" && <FixedCostsSection />}
+      {tab === "purchase" && <ProductPurchaseCostSection />}
 
       {tab === "regular" && (
       <>

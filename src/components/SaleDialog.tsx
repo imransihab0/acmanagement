@@ -82,6 +82,8 @@ export function SaleDialog({
   const [discount, setDiscount] = useState("");
   const [delivery, setDelivery] = useState("");
   const [payment, setPayment] = useState("due");
+  /** Only meaningful when `payment` is "partial" — see the field below. */
+  const [paidNow, setPaidNow] = useState("");
   const [note, setNote] = useState("");
   const [override, setOverride] = useState("");
   const [saveCustomer, setSaveCustomer] = useState(false);
@@ -102,6 +104,7 @@ export function SaleDialog({
     setDiscount("");
     setDelivery("");
     setPayment("due");
+    setPaidNow("");
     setNote("");
     setOverride("");
     setSaveCustomer(false);
@@ -226,10 +229,15 @@ export function SaleDialog({
   const linesValid =
     parsed.length > 0 &&
     parsed.every((l) => Number.isFinite(l.qty) && l.qty > 0 && Number.isFinite(l.price) && l.price >= 0);
+  const paidNowValue = Number(paidNow) || 0;
+  // A partial payment has to leave something still owed — ৳0 is Due and the
+  // full total is Paid, so neither end of the range belongs to this one.
+  const partialValid = payment !== "partial" || (paidNow !== "" && paidNowValue > 0 && paidNowValue < total);
   const valid =
     name.trim().length > 0 &&
     linesValid &&
     discountValue <= subtotal &&
+    partialValid &&
     !saving &&
     (shortLines.length === 0 || override.length > 0);
 
@@ -252,6 +260,7 @@ export function SaleDialog({
         discount: discountValue,
         deliveryCharge: deliveryValue,
         paymentStatus: payment,
+        paidAmount: payment === "partial" ? paidNowValue : undefined,
         note,
         overridePasscode: shortLines.length > 0 ? override : undefined,
         saveCustomer,
@@ -582,7 +591,14 @@ export function SaleDialog({
               </Field>
               <Field label={t("orders.payment")}>
                 {(id) => (
-                  <Select id={id} value={payment} onChange={(e) => setPayment(e.target.value)}>
+                  <Select
+                    id={id}
+                    value={payment}
+                    onChange={(e) => {
+                      setPayment(e.target.value);
+                      if (e.target.value !== "partial") setPaidNow("");
+                    }}
+                  >
                     <option value="due">{t("orders.due")}</option>
                     <option value="partial">{t("orders.partial")}</option>
                     <option value="paid">{t("orders.paid")}</option>
@@ -590,6 +606,28 @@ export function SaleDialog({
                 )}
               </Field>
             </div>
+
+            {/*
+              Without this, a sale rung up as "Partial" had no way to say how
+              much — the order saved with no figure at all, so the sales list
+              and the printed receipt had nothing to show beside "Partial"
+              except the full total, as though nothing had been paid.
+            */}
+            {payment === "partial" && (
+              <Field label={t("orders.amountPaid")} hint={total > 0 ? `${t("orders.partialRange")} ${fmt(total)}.` : undefined}>
+                {(id) => (
+                  <AmountInput
+                    id={id}
+                    symbol={CURRENCY_SYMBOL}
+                    value={paidNow}
+                    onChange={(e) => setPaidNow(e.target.value)}
+                    placeholder="0"
+                    className="text-[18px]"
+                    autoFocus
+                  />
+                )}
+              </Field>
+            )}
 
             {/*
               The one field that separates a counter sale from an order still

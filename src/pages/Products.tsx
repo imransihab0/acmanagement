@@ -3,11 +3,9 @@ import {
   ArchiveRestore,
   Archive,
   Layers,
-  Minus,
   Package,
   PackagePlus,
   Pencil,
-  Plus,
   Search,
   Trash2,
 } from "lucide-react";
@@ -21,11 +19,12 @@ import { ProductDetailDialog } from "../components/ProductDetailDialog";
 import { SaleDialog } from "../components/SaleDialog";
 import { BatchDialog } from "../components/BatchDialog";
 import { PasscodeConfirmDialog } from "../components/PasscodeConfirmDialog";
+import { SetStockDialog } from "../components/SetStockDialog";
 import { RangePills } from "../components/RangePills";
 import { useSettings } from "../lib/settings";
 import { useRangeFilter } from "../lib/dateRange";
 import { gradientFor, initialOf } from "../lib/avatar";
-import { errorMessage, useToast } from "../lib/toast";
+import { useToast } from "../lib/toast";
 import { useAuthedQuery, useAuthedMutation } from "../lib/session";
 
 type ProductRow = Doc<"products"> & { photoUrl: string | null };
@@ -59,7 +58,7 @@ export function ProductsPage() {
     return map;
   }, [salesWindow, range.since, range.untilExclusive]);
 
-  const restock = useAuthedMutation(api.products.restock);
+  const setStock = useAuthedMutation(api.products.setStock);
   /*
     Lots with stock left, so a card can say what this product actually cost —
     which is a range once it has been bought twice at two prices, not the one
@@ -75,6 +74,7 @@ export function ProductsPage() {
   const [deleting, setDeleting] = useState<Doc<"products"> | null>(null);
   const [viewing, setViewing] = useState<Doc<"products"> | null>(null);
   const [lotFor, setLotFor] = useState<Doc<"products"> | null>(null);
+  const [settingStock, setSettingStock] = useState<Doc<"products"> | null>(null);
 
   const visible = useMemo(() => {
     const filtered = (products ?? []).filter((p) => !category || p.category === category);
@@ -93,14 +93,6 @@ export function ProductsPage() {
   }, [products, category, sort, profitByProduct]);
 
   const pager = usePagination(visible, `${search}|${category}|${sort}|${showArchived}`, 25);
-
-  async function adjust(product: Doc<"products">, delta: number) {
-    try {
-      await restock({ id: product._id, delta });
-    } catch (err) {
-      toast.error(errorMessage(err));
-    }
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -235,7 +227,7 @@ export function ProductsPage() {
                     product.archived ? `${product.name} restored.` : `${product.name} archived.`,
                   );
                 }}
-                onAdjust={(delta) => adjust(product, delta)}
+                onSetStock={() => setSettingStock(product)}
                 fmt={fmt}
                 profit={profitByProduct.get(product._id) ?? 0}
                 rangeLabel={range.activeLabel.full}
@@ -288,6 +280,17 @@ export function ProductsPage() {
           toast.ok(t("toast.productDeleted"));
         }}
       />
+      <SetStockDialog
+        open={settingStock !== null}
+        onClose={() => setSettingStock(null)}
+        productName={settingStock?.name ?? ""}
+        currentQuantity={settingStock?.quantity ?? 0}
+        onConfirm={async (quantity, passcode) => {
+          if (!settingStock) return;
+          await setStock({ id: settingStock._id, quantity, passcode });
+          toast.ok(t("toast.stockUpdated"));
+        }}
+      />
     </div>
   );
 }
@@ -301,7 +304,7 @@ function ProductCard({
   onEdit,
   onDelete,
   onArchiveToggle,
-  onAdjust,
+  onSetStock,
   fmt,
   profit,
   rangeLabel,
@@ -314,7 +317,7 @@ function ProductCard({
   onEdit: () => void;
   onDelete: () => void;
   onArchiveToggle: () => void;
-  onAdjust: (delta: number) => void;
+  onSetStock: () => void;
   fmt: (v: number) => string;
   /** This product's actual profit in the page's selected date range. */
   profit: number;
@@ -474,31 +477,21 @@ function ProductCard({
 
         <div className="mt-3 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
           {/*
-            Each size has its own stock, so one +/- here would have to guess
-            which size it meant — the sizes themselves, in Edit product, are
-            where that number actually lives.
+            Each size has its own stock, so a set-stock control here would
+            have to guess which size it meant — the sizes themselves, in Edit
+            product, are where that number actually lives.
           */}
           {!hasVariants && (
-            <div className="flex h-10 items-center rounded-xl border border-line-strong bg-page">
-              <button
-                onClick={() => onAdjust(-1)}
-                disabled={product.quantity === 0}
-                aria-label={`Remove one unit of ${product.name}`}
-                className="flex size-9 items-center justify-center rounded-l-xl text-ink-3 transition-colors hover:text-ink disabled:opacity-30"
-              >
-                <Minus size={14} />
-              </button>
-              <span className="min-w-7 text-center text-[13.5px] font-bold tabular-nums text-ink">
+            <button
+              onClick={onSetStock}
+              aria-label={`Set stock for ${product.name}`}
+              className="flex h-10 items-center gap-2 rounded-xl border border-line-strong bg-page px-3 text-ink-3 transition-colors hover:text-ink"
+            >
+              <span className="min-w-5 text-center text-[13.5px] font-bold tabular-nums text-ink">
                 {product.quantity}
               </span>
-              <button
-                onClick={() => onAdjust(1)}
-                aria-label={`Add one unit of ${product.name}`}
-                className="flex size-9 items-center justify-center rounded-r-xl text-ink-3 transition-colors hover:text-ink"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
+              <Pencil size={13} />
+            </button>
           )}
           <Button size="sm" variant="primary" onClick={onSell} disabled={out} className={cx(hasVariants && "w-full")}>
             Sell

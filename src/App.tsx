@@ -7,12 +7,12 @@ import {
   Coins,
   Users,
   Truck,
+  GraduationCap,
   Menu,
   X,
   Monitor,
   Sun,
   Moon,
-  Wallet,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -30,8 +30,17 @@ import { ProfitPage } from "./pages/Profit";
 import { CostsPage } from "./pages/Costs";
 import { CustomersPage } from "./pages/Customers";
 import { VendorsPage } from "./pages/Vendors";
+import { TraineesPage } from "./pages/Trainees";
 
-type Route = "dashboard" | "products" | "sales" | "customers" | "vendors" | "costs" | "profit";
+type Route =
+  | "dashboard"
+  | "products"
+  | "sales"
+  | "customers"
+  | "vendors"
+  | "trainees"
+  | "costs"
+  | "profit";
 
 const NAV: { route: Route; key: MessageKey; icon: typeof LayoutDashboard }[] = [
   { route: "dashboard", key: "nav.dashboard", icon: LayoutDashboard },
@@ -39,6 +48,7 @@ const NAV: { route: Route; key: MessageKey; icon: typeof LayoutDashboard }[] = [
   { route: "sales", key: "nav.sales", icon: ShoppingCart },
   { route: "customers", key: "nav.customers", icon: Users },
   { route: "vendors", key: "nav.vendors", icon: Truck },
+  { route: "trainees", key: "nav.trainees", icon: GraduationCap },
   { route: "costs", key: "nav.costs", icon: Coins },
   { route: "profit", key: "nav.profit", icon: PieChart },
 ];
@@ -136,6 +146,7 @@ export default function App() {
             {route === "sales" && <SalesPage />}
             {route === "customers" && <CustomersPage />}
             {route === "vendors" && <VendorsPage />}
+            {route === "trainees" && <TraineesPage />}
             {route === "costs" && <CostsPage />}
             {route === "profit" && <ProfitPage />}
           </div>
@@ -189,11 +200,8 @@ function Sidebar({
       )}
     >
       <div className="flex h-20 shrink-0 items-center px-3.5">
-        <span
-          className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-white shadow-[var(--shadow-hero)]"
-          style={{ background: "var(--grad-violet)" }}
-        >
-          <Wallet size={19} />
+        <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 shadow-[var(--shadow-hero)]">
+          <img src="/brand/bdmushroom-seal.png" alt="" className="size-full object-contain" />
         </span>
         <div
           className={cx(
@@ -214,10 +222,10 @@ function Sidebar({
         </button>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 pt-2">
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-2">
         <p
           className={cx(
-            "px-3 text-[10.5px] font-bold tracking-[0.08em] text-ink-3 uppercase",
+            "shrink-0 px-3 text-[10.5px] font-bold tracking-[0.08em] text-ink-3 uppercase",
             labelMotion,
             rail ? "lg:max-h-0 lg:pb-0 lg:opacity-0" : "max-h-5 pb-2 opacity-100",
           )}
@@ -235,7 +243,7 @@ function Sidebar({
               title={rail ? label : undefined}
               style={active ? { background: "var(--grad-violet)" } : undefined}
               className={cx(
-                "ac-press flex h-11 items-center overflow-hidden rounded-xl px-3 text-[14px] font-semibold",
+                "ac-press flex h-11 shrink-0 items-center overflow-hidden rounded-xl px-3 text-[14px] font-semibold",
                 active
                   ? "text-white shadow-[var(--shadow-hero)]"
                   : "text-ink-2 hover:bg-surface-2 hover:text-ink",
