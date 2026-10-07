@@ -9,7 +9,7 @@ import {
 } from "react";
 import { money, moneyCompact, num, percent, formatDate, formatDateFull, formatDateTime, type Lang } from "./format";
 
-export type ThemeChoice = "system" | "light" | "dark";
+export type ThemeChoice = "system" | "light" | "dark" | "brand";
 export type { Lang };
 
 type Settings = {
@@ -39,7 +39,7 @@ const LANG_KEY = "ac.lang";
 
 function readTheme(): ThemeChoice {
   const raw = localStorage.getItem(THEME_KEY);
-  return raw === "light" || raw === "dark" ? raw : "system";
+  return raw === "light" || raw === "dark" || raw === "brand" ? raw : "system";
 }
 
 function readNavCollapsed(): boolean {
