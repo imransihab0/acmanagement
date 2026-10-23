@@ -98,12 +98,13 @@ export function SalesPage() {
   const toast = useToast();
   const orders = useAuthedQuery(api.orders.list, {});
   const customers = useAuthedQuery(api.customers.list, { withBalances: false }) ?? [];
+  const range = useRangeFilter("ac.range.sales");
   /*
     Only `windowCosts` is used from here — the per-range operating costs that
     turn gross profit into net, scoped the same way `range` scopes the sales
     below.
   */
-  const dashboardData = useAuthedQuery(api.dashboard.overview);
+  const dashboardData = useAuthedQuery(api.dashboard.overview, { since: range.since });
   const confirmOrder = useAuthedMutation(api.orders.confirm);
   const cancelOrder = useAuthedMutation(api.orders.cancel);
   const removeOrder = useAuthedMutation(api.orders.remove);
@@ -125,7 +126,6 @@ export function SalesPage() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const range = useRangeFilter("ac.range.sales");
   const [addOpen, setAddOpen] = useState(false);
   /*
     One piece of state for every passcode-gated action on a sale, so the four

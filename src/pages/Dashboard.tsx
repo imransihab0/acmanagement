@@ -40,8 +40,8 @@ function change(current: number, previous: number): number | null {
 export function DashboardPage({ onNavigate }: { onNavigate: (r: "products" | "sales") => void }) {
   const { fmt, fmtNum, fmtPercent } = useSettings();
   const t = useT();
-  const data = useAuthedQuery(api.dashboard.overview);
   const range = useRangeFilter("ac.range.dashboard");
+  const data = useAuthedQuery(api.dashboard.overview, { since: range.prevSince });
   const [sellOpen, setSellOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
   const [viewing, setViewing] = useState<Id<"products"> | null>(null);

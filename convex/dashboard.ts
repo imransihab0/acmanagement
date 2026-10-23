@@ -1,29 +1,31 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireSession } from "./auth";
-import { withBatchLotStock } from "./stock";
 import { allRowsForDashboard } from "./fixedCosts";
 
 const LOW_STOCK_AT = 3;
-const WINDOW_DAYS = 365;
 
 /**
- * Everything the dashboard renders, in one subscription.
+ * Everything the dashboard renders, scoped to the active time range.
  *
- * Range-scoped numbers are deliberately *not* aggregated here: bucketing by
- * calendar day and applying the "last N days" filter both depend on the
- * browser's timezone. This returns one compact row per sale in the window and
- * lets the client slice it, so a single date-range control can scope every
- * card on the page consistently.
+ * Range-scoped numbers are deliberately not aggregated on all-time history:
+ * bucketing by calendar day and applying the date filter happens in the browser's
+ * timezone. This query returns only the window needed by the active range filter,
+ * eliminating full-table scans on every page reload and drastically reducing I/O.
  */
 export const overview = query({
-  args: { token: v.string() },
+  args: { token: v.string(), since: v.optional(v.number()) },
   handler: async (ctx, args) => {
     await requireSession(ctx, args.token);
-    const rawProducts = await ctx.db.query("products").collect();
-    const products = await withBatchLotStock(ctx, rawProducts);
-    // One extra day of slack so a timezone shift can't clip the oldest bucket.
-    const since = Date.now() - (WINDOW_DAYS + 1) * 24 * 60 * 60 * 1000;
+
+    // Products table stores cached quantity and costPrice maintained by syncProduct (stock.ts).
+    // Avoiding withBatchLotStock eliminates full-table scans of stockBatches on every dashboard load.
+    const products = await ctx.db.query("products").collect();
+
+    // Default to 60 days of window if not provided, or client range's since (plus buffer for deltas)
+    const now = Date.now();
+    const defaultSince = now - 60 * 24 * 60 * 60 * 1000;
+    const since = args.since ?? defaultSince;
 
     // Query sales and costs inside the active window using index ranges
     const windowSalesRaw = await ctx.db
@@ -32,41 +34,23 @@ export const overview = query({
       .order("desc")
       .collect();
 
-    const olderSales = await ctx.db
-      .query("sales")
-      .withIndex("by_soldAt", (q) => q.lt("soldAt", since))
-      .collect();
-
     const windowCostsRaw = await ctx.db
       .query("costs")
       .withIndex("by_spentAt", (q) => q.gte("spentAt", since))
       .order("desc")
       .collect();
 
-    const olderCosts = await ctx.db
-      .query("costs")
-      .withIndex("by_spentAt", (q) => q.lt("spentAt", since))
-      .collect();
-
     /*
-      Fixed costs — rent, the wifi bill, salary — booked once a month rather
-      than logged as they happen. They still eat into net profit the same as
-      any other operating cost, so they are folded into the same dated rows
-      here (each dated to the 1st of the month it was booked for) rather than
-      kept as a second, separate total the rest of this query would have to
-      remember to add in.
+      Fixed costs — rent, wifi, salary — booked once a month rather than logged
+      as they happen. Filtered to the active window.
     */
     const fixedCostRows = await allRowsForDashboard(ctx);
+    const windowFixedCosts = fixedCostRows.filter((c) => c.spentAt >= since);
 
     let revenue = 0;
     let cost = 0;
     let unitsSold = 0;
     for (const s of windowSalesRaw) {
-      revenue += s.unitPrice * s.quantity;
-      cost += s.unitCost * s.quantity;
-      unitsSold += s.quantity;
-    }
-    for (const s of olderSales) {
       revenue += s.unitPrice * s.quantity;
       cost += s.unitCost * s.quantity;
       unitsSold += s.quantity;
@@ -80,8 +64,7 @@ export const overview = query({
     }));
     const allCosts = [
       ...windowCosts,
-      ...olderCosts.map((c) => ({ id: c._id as string, name: c.name, spentAt: c.spentAt, amount: c.amount })),
-      ...fixedCostRows,
+      ...windowFixedCosts,
     ].sort((a, b) => b.spentAt - a.spentAt);
 
     let operatingCost = 0;
@@ -95,18 +78,12 @@ export const overview = query({
       inventoryCost += p.quantity * p.costPrice;
     }
 
-    const totalSalesCount = windowSalesRaw.length + olderSales.length;
+    const totalSalesCount = windowSalesRaw.length;
 
     return {
       allTime: {
         revenue,
         cost,
-        /*
-          `profit` is gross — revenue less what the units cost to buy. `net`
-          takes the operating costs off that. Both are reported because a shop
-          that only sees one of them cannot tell a thin margin from an
-          expensive month.
-        */
         profit: revenue - cost,
         operatingCost,
         net: revenue - cost - operatingCost,
@@ -138,17 +115,8 @@ export const overview = query({
         revenue: s.unitPrice * s.quantity,
         profit: (s.unitPrice - s.unitCost) * s.quantity,
       })),
-      /*
-        One dated row per cost in the window, for the same reason the sales
-        are not pre-aggregated: the page's range control is applied in the
-        browser's timezone, and a total summed here could not be re-scoped
-        without a second round trip.
-      */
-      windowCosts: [
-        ...windowCosts,
-        ...fixedCostRows.filter((c) => c.spentAt >= since),
-      ].sort((a, b) => b.spentAt - a.spentAt),
-      windowDays: WINDOW_DAYS,
+      windowCosts: allCosts,
+      windowDays: Math.ceil((now - since) / (24 * 60 * 60 * 1000)),
     };
   },
 });
