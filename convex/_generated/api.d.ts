@@ -17,6 +17,8 @@ import type * as danger from "../danger.js";
 import type * as dashboard from "../dashboard.js";
 import type * as fixedCosts from "../fixedCosts.js";
 import type * as investment from "../investment.js";
+import type * as migrateToR2 from "../migrateToR2.js";
+import type * as migrateToR2Queries from "../migrateToR2Queries.js";
 import type * as migrations from "../migrations.js";
 import type * as orders from "../orders.js";
 import type * as otp from "../otp.js";
@@ -50,6 +52,8 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   fixedCosts: typeof fixedCosts;
   investment: typeof investment;
+  migrateToR2: typeof migrateToR2;
+  migrateToR2Queries: typeof migrateToR2Queries;
   migrations: typeof migrations;
   orders: typeof orders;
   otp: typeof otp;

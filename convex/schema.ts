@@ -646,6 +646,7 @@ export default defineSchema({
       v.array(
         v.object({
           storageId: v.id("_storage"),
+          url: v.optional(v.string()),
           fileName: v.string(),
           kind: v.union(v.literal("image"), v.literal("pdf")),
         }),
@@ -700,6 +701,7 @@ export default defineSchema({
       v.array(
         v.object({
           storageId: v.id("_storage"),
+          url: v.optional(v.string()),
           fileName: v.string(),
           kind: v.union(v.literal("image"), v.literal("pdf")),
         }),
