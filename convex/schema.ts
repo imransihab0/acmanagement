@@ -279,8 +279,9 @@ export default defineSchema({
   */
   vendors: defineTable({
     name: v.string(),
-    /** The vendor's profile picture, stored in Convex file storage. */
+    /** The vendor's profile picture, stored in Convex file storage or Cloudflare R2. */
     photoId: v.optional(v.id("_storage")),
+    photoUrl: v.optional(v.string()),
     /** Absent when uncategorised — including after its category was deleted. */
     categoryId: v.optional(v.id("vendorCategories")),
     subCategoryId: v.optional(v.id("vendorCategories")),
@@ -332,7 +333,8 @@ export default defineSchema({
   vendorMedia: defineTable({
     vendorId: v.id("vendors"),
     folderId: v.optional(v.id("vendorFolders")),
-    storageId: v.id("_storage"),
+    storageId: v.optional(v.id("_storage")),
+    url: v.optional(v.string()),
     kind: v.union(v.literal("image"), v.literal("video")),
     fileName: v.string(),
     createdAt: v.number(),
@@ -437,8 +439,9 @@ export default defineSchema({
   */
   customers: defineTable({
     name: v.string(),
-    /** The customer's profile picture, stored in Convex file storage. */
+    /** The customer's profile picture, stored in Convex file storage or Cloudflare R2. */
     photoId: v.optional(v.id("_storage")),
+    photoUrl: v.optional(v.string()),
     phone: v.optional(v.string()),
     /** Further numbers beyond the main one — optional, as many as needed. */
     extraPhones: v.optional(v.array(v.string())),
@@ -474,8 +477,9 @@ export default defineSchema({
 
   products: defineTable({
     name: v.string(),
-    /** The product's photo, stored in Convex file storage. */
+    /** The product's photo, stored in Convex file storage or Cloudflare R2. */
     photoId: v.optional(v.id("_storage")),
+    photoUrl: v.optional(v.string()),
     /*
       Kept in step with the product's lots by `syncProduct` (stock.ts) — the
       cheapest buy and sell price among lots with stock left — and never set

@@ -5,7 +5,8 @@ import { requireSession, verifyPasscode } from "./auth";
 import { customerKey } from "./shared";
 
 /** Attaches a signed, short-lived photo URL — the stored `photoId` is never useful to the browser on its own. */
-async function withPhoto<T extends { photoId?: Id<"_storage"> }>(ctx: QueryCtx, p: T) {
+async function withPhoto<T extends { photoId?: Id<"_storage">; photoUrl?: string }>(ctx: QueryCtx, p: T) {
+  if (p.photoUrl) return { ...p, photoUrl: p.photoUrl };
   const photoUrl = p.photoId ? await ctx.storage.getUrl(p.photoId) : null;
   return { ...p, photoUrl };
 }
@@ -334,13 +335,22 @@ export const generateUploadUrl = mutation({
 
 /** Points a customer at a newly uploaded photo, replacing whichever one they had. */
 export const setPhoto = mutation({
-  args: { token: v.string(), id: v.id("customers"), storageId: v.id("_storage") },
+  args: {
+    token: v.string(),
+    id: v.id("customers"),
+    photoUrl: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
+  },
   handler: async (ctx, args) => {
     await requireSession(ctx, args.token);
     const customer = await ctx.db.get(args.id);
     if (!customer) throw new ConvexError("That customer is no longer saved.");
     const oldPhotoId = customer.photoId;
-    await ctx.db.patch(args.id, { photoId: args.storageId });
+    if (args.photoUrl) {
+      await ctx.db.patch(args.id, { photoUrl: args.photoUrl, photoId: undefined });
+    } else if (args.storageId) {
+      await ctx.db.patch(args.id, { photoId: args.storageId, photoUrl: undefined });
+    }
     if (oldPhotoId && oldPhotoId !== args.storageId) {
       try {
         await ctx.storage.delete(oldPhotoId);
@@ -358,8 +368,8 @@ export const removePhoto = mutation({
     const customer = await ctx.db.get(args.id);
     if (!customer) throw new ConvexError("That customer is no longer saved.");
     const oldPhotoId = customer.photoId;
+    await ctx.db.patch(args.id, { photoId: undefined, photoUrl: undefined });
     if (oldPhotoId) {
-      await ctx.db.patch(args.id, { photoId: undefined });
       try {
         await ctx.storage.delete(oldPhotoId);
       } catch {

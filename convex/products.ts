@@ -5,8 +5,9 @@ import { ConvexError } from "convex/values";
 import { requireSession, verifyPasscode } from "./auth";
 import { withLotStock, withBatchLotStock, applyLotsToProduct } from "./stock";
 
-/** Attaches a signed, short-lived photo URL to a product row — the stored `photoId` is never useful to the browser on its own. */
-async function withPhoto<T extends { photoId?: Id<"_storage"> }>(ctx: QueryCtx, p: T) {
+/** Attaches a photo URL to a product row — uses direct R2 URL if present, or signed Convex URL fallback. */
+async function withPhoto<T extends { photoId?: Id<"_storage">; photoUrl?: string }>(ctx: QueryCtx, p: T) {
+  if (p.photoUrl) return { ...p, photoUrl: p.photoUrl };
   const photoUrl = p.photoId ? await ctx.storage.getUrl(p.photoId) : null;
   return { ...p, photoUrl };
 }
@@ -84,13 +85,22 @@ export const generateUploadUrl = mutation({
  * reference it, since the product row was its only pointer.
  */
 export const setPhoto = mutation({
-  args: { token: v.string(), id: v.id("products"), storageId: v.id("_storage") },
+  args: {
+    token: v.string(),
+    id: v.id("products"),
+    photoUrl: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
+  },
   handler: async (ctx, args) => {
     await requireSession(ctx, args.token);
     const product = await ctx.db.get(args.id);
     if (!product) throw new ConvexError("That product no longer exists.");
     const oldPhotoId = product.photoId;
-    await ctx.db.patch(args.id, { photoId: args.storageId });
+    if (args.photoUrl) {
+      await ctx.db.patch(args.id, { photoUrl: args.photoUrl, photoId: undefined });
+    } else if (args.storageId) {
+      await ctx.db.patch(args.id, { photoId: args.storageId, photoUrl: undefined });
+    }
     if (oldPhotoId && oldPhotoId !== args.storageId) {
       try {
         await ctx.storage.delete(oldPhotoId);
@@ -108,8 +118,8 @@ export const removePhoto = mutation({
     const product = await ctx.db.get(args.id);
     if (!product) throw new ConvexError("That product no longer exists.");
     const oldPhotoId = product.photoId;
+    await ctx.db.patch(args.id, { photoId: undefined, photoUrl: undefined });
     if (oldPhotoId) {
-      await ctx.db.patch(args.id, { photoId: undefined });
       try {
         await ctx.storage.delete(oldPhotoId);
       } catch {

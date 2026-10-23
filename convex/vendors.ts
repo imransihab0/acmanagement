@@ -4,7 +4,8 @@ import type { Id } from "./_generated/dataModel";
 import { requireSession, verifyPasscode } from "./auth";
 
 /** Attaches a signed, short-lived photo URL — the stored `photoId` is never useful to the browser on its own. */
-async function withPhoto<T extends { photoId?: Id<"_storage"> }>(ctx: QueryCtx, p: T) {
+async function withPhoto<T extends { photoId?: Id<"_storage">; photoUrl?: string }>(ctx: QueryCtx, p: T) {
+  if (p.photoUrl) return { ...p, photoUrl: p.photoUrl };
   const photoUrl = p.photoId ? await ctx.storage.getUrl(p.photoId) : null;
   return { ...p, photoUrl };
 }
@@ -96,7 +97,7 @@ export const detail = query({
         kind: m.kind,
         fileName: m.fileName,
         createdAt: m.createdAt,
-        url: await ctx.storage.getUrl(m.storageId),
+        url: m.url ?? (m.storageId ? await ctx.storage.getUrl(m.storageId) : null),
       })),
     );
 
@@ -197,13 +198,22 @@ export const update = mutation({
 
 /** Points a vendor at a newly uploaded photo, replacing whichever one they had. */
 export const setPhoto = mutation({
-  args: { token: v.string(), id: v.id("vendors"), storageId: v.id("_storage") },
+  args: {
+    token: v.string(),
+    id: v.id("vendors"),
+    photoUrl: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
+  },
   handler: async (ctx, args) => {
     await requireSession(ctx, args.token);
     const vendor = await ctx.db.get(args.id);
     if (!vendor) throw new ConvexError("That vendor no longer exists.");
     const oldPhotoId = vendor.photoId;
-    await ctx.db.patch(args.id, { photoId: args.storageId });
+    if (args.photoUrl) {
+      await ctx.db.patch(args.id, { photoUrl: args.photoUrl, photoId: undefined });
+    } else if (args.storageId) {
+      await ctx.db.patch(args.id, { photoId: args.storageId, photoUrl: undefined });
+    }
     if (oldPhotoId && oldPhotoId !== args.storageId) {
       try {
         await ctx.storage.delete(oldPhotoId);
@@ -221,8 +231,8 @@ export const removePhoto = mutation({
     const vendor = await ctx.db.get(args.id);
     if (!vendor) throw new ConvexError("That vendor no longer exists.");
     const oldPhotoId = vendor.photoId;
+    await ctx.db.patch(args.id, { photoId: undefined, photoUrl: undefined });
     if (oldPhotoId) {
-      await ctx.db.patch(args.id, { photoId: undefined });
       try {
         await ctx.storage.delete(oldPhotoId);
       } catch {
@@ -249,7 +259,11 @@ export const remove = mutation({
       .withIndex("by_vendor", (q) => q.eq("vendorId", args.id))
       .collect();
     for (const m of media) {
-      await ctx.storage.delete(m.storageId);
+      if (m.storageId) {
+        try {
+          await ctx.storage.delete(m.storageId);
+        } catch {}
+      }
       await ctx.db.delete(m._id);
     }
     const folders = await ctx.db
@@ -315,7 +329,11 @@ export const removeFolder = mutation({
       .collect();
     for (const m of media) {
       await unlinkMediaFromLots(ctx, folder.vendorId, m._id);
-      await ctx.storage.delete(m.storageId);
+      if (m.storageId) {
+        try {
+          await ctx.storage.delete(m.storageId);
+        } catch {}
+      }
       await ctx.db.delete(m._id);
     }
     await ctx.db.delete(args.id);
@@ -338,7 +356,8 @@ export const attachMedia = mutation({
     token: v.string(),
     vendorId: v.id("vendors"),
     folderId: v.optional(v.id("vendorFolders")),
-    storageId: v.id("_storage"),
+    storageId: v.optional(v.id("_storage")),
+    url: v.optional(v.string()),
     fileName: v.string(),
     kind: v.union(v.literal("image"), v.literal("video")),
   },
@@ -350,6 +369,7 @@ export const attachMedia = mutation({
       vendorId: args.vendorId,
       folderId: args.folderId,
       storageId: args.storageId,
+      url: args.url,
       kind: args.kind,
       fileName: args.fileName,
       createdAt: Date.now(),
@@ -383,7 +403,11 @@ export const removeMedia = mutation({
     const row = await ctx.db.get(args.id);
     if (!row) return;
     await unlinkMediaFromLots(ctx, row.vendorId, args.id);
-    await ctx.storage.delete(row.storageId);
+    if (row.storageId) {
+      try {
+        await ctx.storage.delete(row.storageId);
+      } catch {}
+    }
     await ctx.db.delete(args.id);
   },
 });

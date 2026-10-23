@@ -725,7 +725,11 @@ export const demoVendors = internalMutation({
   handler: async (ctx) => {
     const media = await ctx.db.query("vendorMedia").collect();
     for (const m of media) {
-      await ctx.storage.delete(m.storageId);
+      if (m.storageId) {
+        try {
+          await ctx.storage.delete(m.storageId);
+        } catch {}
+      }
       await ctx.db.delete(m._id);
     }
     const folders = await ctx.db.query("vendorFolders").collect();

@@ -5,8 +5,8 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { Button, cx } from "./ui";
 import { useT } from "../lib/i18n";
 import { errorMessage, useToast } from "../lib/toast";
-import { useAuthedMutation, useAuthedQuery } from "../lib/session";
-import { mediaKindOf, uploadFile, useFileDrop, useUploadProgress } from "../lib/upload";
+import { useAuthedAction, useAuthedMutation, useAuthedQuery } from "../lib/session";
+import { mediaKindOf, uploadFileToR2, useFileDrop, useUploadProgress } from "../lib/upload";
 
 /**
  * The receipts/photos/videos attached to one stock lot — shared by the lot's
@@ -25,7 +25,7 @@ export function LotMediaManager({ lotId }: { lotId: Id<"stockBatches"> }) {
     api.vendors.detail,
     data?.vendor ? { id: data.vendor._id } : "skip",
   );
-  const generateUploadUrl = useAuthedMutation(api.vendors.generateUploadUrl);
+  const generateR2UploadUrl = useAuthedAction(api.r2.generateUploadUrl);
   const attachVendorMedia = useAuthedMutation(api.vendors.attachMedia);
   const attachLotMedia = useAuthedMutation(api.profit.attachLotMedia);
   const removeLotMedia = useAuthedMutation(api.profit.removeLotMedia);
@@ -44,11 +44,10 @@ export function LotMediaManager({ lotId }: { lotId: Id<"stockBatches"> }) {
     if (!vendor) return;
     setUploading(true);
     try {
-      const uploadUrl = await generateUploadUrl({});
-      const storageId = await uploadFile(uploadUrl, file);
+      const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, file, "lots");
       const mediaId = await attachVendorMedia({
         vendorId: vendor._id,
-        storageId,
+        url: publicUrl,
         fileName: file.name,
         kind: mediaKindOf(file),
       });

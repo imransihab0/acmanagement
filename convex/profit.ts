@@ -365,7 +365,7 @@ export const lotDetail = query({
           _id: m._id,
           kind: m.kind,
           fileName: m.fileName,
-          url: await ctx.storage.getUrl(m.storageId),
+          url: m.url ?? (m.storageId ? await ctx.storage.getUrl(m.storageId) : null),
         })),
     );
 

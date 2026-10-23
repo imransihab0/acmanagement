@@ -12,8 +12,8 @@ import { useSettings } from "../lib/settings";
 import { useT } from "../lib/i18n";
 import { gradientFor } from "../lib/avatar";
 import { errorMessage, useToast } from "../lib/toast";
-import { useAuthedMutation, useAuthedQuery } from "../lib/session";
-import { uploadFile, useFileDrop, useUploadProgress } from "../lib/upload";
+import { useAuthedAction, useAuthedMutation, useAuthedQuery } from "../lib/session";
+import { uploadFileToR2, useFileDrop, useUploadProgress } from "../lib/upload";
 
 type ProductWithPhoto = Doc<"products"> & { photoUrl?: string | null };
 
@@ -26,7 +26,7 @@ type ProductWithPhoto = Doc<"products"> & { photoUrl?: string | null };
 function ProductPhotoAvatar({ product }: { product: ProductWithPhoto }) {
   const t = useT();
   const toast = useToast();
-  const generateUploadUrl = useAuthedMutation(api.products.generateUploadUrl);
+  const generateR2UploadUrl = useAuthedAction(api.r2.generateUploadUrl);
   const setPhoto = useAuthedMutation(api.products.setPhoto);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(product.photoUrl ?? null);
@@ -41,9 +41,9 @@ function ProductPhotoAvatar({ product }: { product: ProductWithPhoto }) {
     setPreview(URL.createObjectURL(file));
     setBusy(true);
     try {
-      const uploadUrl = await generateUploadUrl({});
-      const storageId = await uploadFile(uploadUrl, file);
-      await setPhoto({ id: product._id, storageId });
+      const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, file, "products");
+      await setPhoto({ id: product._id, photoUrl: publicUrl });
+      setPreview(publicUrl);
       toast.ok(t("products.photoUpdated"));
     } catch (err) {
       toast.error(errorMessage(err));

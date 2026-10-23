@@ -6,8 +6,8 @@ import { AmountInput, Button, Field, Input, Modal, ModalFooter, Select, Textarea
 import { useT } from "../lib/i18n";
 import { CURRENCY_SYMBOL } from "../lib/format";
 import { errorMessage, useToast } from "../lib/toast";
-import { useAuthedMutation } from "../lib/session";
-import { uploadFile, useFileDrop, useUploadProgress } from "../lib/upload";
+import { useAuthedAction, useAuthedMutation } from "../lib/session";
+import { uploadFileToR2, useFileDrop, useUploadProgress } from "../lib/upload";
 import { useProductCategories } from "../lib/productCategories";
 import { ProductCategoriesDialog } from "./ProductCategoriesDialog";
 
@@ -54,7 +54,7 @@ export function ProductDialog({
   const toast = useToast();
   const create = useAuthedMutation(api.products.create);
   const update = useAuthedMutation(api.products.update);
-  const generateUploadUrl = useAuthedMutation(api.products.generateUploadUrl);
+  const generateR2UploadUrl = useAuthedAction(api.r2.generateUploadUrl);
   const setPhoto = useAuthedMutation(api.products.setPhoto);
   const removePhoto = useAuthedMutation(api.products.removePhoto);
   const { categories: productCats, allCategories, subcategoriesOf, label: catLabel, categoryOf, subCategoryOf } = useProductCategories();
@@ -130,10 +130,9 @@ export function ProductDialog({
     }
     setPhotoBusy(true);
     try {
-      const uploadUrl = await generateUploadUrl({});
-      const storageId = await uploadFile(uploadUrl, file);
-      await setPhoto({ id: product._id, storageId });
-      setSavedPhotoUrl(preview);
+      const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, file, "products");
+      await setPhoto({ id: product._id, photoUrl: publicUrl });
+      setSavedPhotoUrl(publicUrl);
       toast.ok(t("products.photoUpdated"));
     } catch (err) {
       toast.error(errorMessage(err));
@@ -195,9 +194,8 @@ export function ProductDialog({
         // A photo picked before the product existed uploads now, against
         // the id Save just produced.
         if (pendingPhoto) {
-          const uploadUrl = await generateUploadUrl({});
-          const storageId = await uploadFile(uploadUrl, pendingPhoto);
-          await setPhoto({ id, storageId });
+          const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, pendingPhoto, "products");
+          await setPhoto({ id, photoUrl: publicUrl });
         }
         toast.ok(`Added ${payload.name.trim()}.`);
         onClose();

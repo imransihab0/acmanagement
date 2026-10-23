@@ -7,8 +7,8 @@ import { ContactPhotoAvatar } from "./ContactPhotoAvatar";
 import { CustomerDashboardPanel, ReceiptPanel } from "./CustomerDashboard";
 import { useT } from "../lib/i18n";
 import { avatarGradientFor } from "../lib/avatar";
-import { useAuthedMutation, useAuthedQuery } from "../lib/session";
-import { uploadFile } from "../lib/upload";
+import { useAuthedAction, useAuthedMutation, useAuthedQuery } from "../lib/session";
+import { uploadFileToR2 } from "../lib/upload";
 import { externalUrl, whatsappUrl } from "../../convex/shared";
 
 /**
@@ -29,7 +29,7 @@ export function CustomerDetailDialog({
 }) {
   const t = useT();
   const data = useAuthedQuery(api.customers.detail, customerId ? { id: customerId } : "skip");
-  const generateUploadUrl = useAuthedMutation(api.customers.generateUploadUrl);
+  const generateR2UploadUrl = useAuthedAction(api.r2.generateUploadUrl);
   const setPhoto = useAuthedMutation(api.customers.setPhoto);
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [receiptId, setReceiptId] = useState<Id<"orders"> | null>(null);
@@ -54,9 +54,8 @@ export function CustomerDetailDialog({
             name={name}
             photoUrl={data.customer.photoUrl}
             onUpload={async (file) => {
-              const uploadUrl = await generateUploadUrl({});
-              const storageId = await uploadFile(uploadUrl, file);
-              await setPhoto({ id: data.customer._id, storageId });
+              const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, file, "customers");
+              await setPhoto({ id: data.customer._id, photoUrl: publicUrl });
             }}
           />
         ) : (

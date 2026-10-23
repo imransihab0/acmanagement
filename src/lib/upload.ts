@@ -347,6 +347,128 @@ export async function uploadFile(
   }
 }
 
+/**
+ * Uploads a file directly to Cloudflare R2 via presigned PUT URL.
+ * Compresses images > 160KB down to under 200KB before uploading.
+ * Returns the key and direct public URL of the uploaded object.
+ */
+export async function uploadFileToR2(
+  getUploadUrl: (args: { folder?: string; fileName: string; contentType?: string }) => Promise<{
+    uploadUrl: string;
+    key: string;
+    publicUrl: string;
+  }>,
+  file: File,
+  folder?: string,
+  onProgress?: (progress: number) => void,
+): Promise<{ key: string; publicUrl: string }> {
+  const uploadId = Math.random().toString(36).slice(2);
+  const needsCompression =
+    file.size > COMPRESS_THRESHOLD_BYTES &&
+    isImage(file) &&
+    file.type !== "image/svg+xml" &&
+    file.type !== "image/gif";
+
+  setUploadStatus({
+    id: uploadId,
+    fileName: file.name,
+    fileSize: file.size,
+    stage: needsCompression ? "compressing" : "uploading",
+    progress: needsCompression ? 10 : 25,
+  });
+
+  try {
+    let preparedFile = file;
+    if (needsCompression) {
+      preparedFile = await compressMedia(file, (_, percent) => {
+        const overall = 10 + Math.round(percent * 0.5);
+        setUploadStatus({
+          id: uploadId,
+          fileName: file.name,
+          fileSize: file.size,
+          stage: "compressing",
+          progress: overall,
+        });
+        onProgress?.(overall);
+      });
+    }
+
+    setUploadStatus({
+      id: uploadId,
+      fileName: file.name,
+      fileSize: file.size,
+      compressedSize: preparedFile.size,
+      stage: "uploading",
+      progress: 65,
+    });
+    onProgress?.(65);
+
+    const contentType = preparedFile.type || file.type || "application/octet-stream";
+    const { uploadUrl, key, publicUrl } = await getUploadUrl({
+      folder,
+      fileName: preparedFile.name,
+      contentType,
+    });
+
+    const progressInterval = setInterval(() => {
+      setUploadStatus((prev) => {
+        if (!prev || prev.id !== uploadId || prev.stage !== "uploading") return prev;
+        if (prev.progress >= 94) return prev;
+        const nextProgress = prev.progress + 3;
+        onProgress?.(nextProgress);
+        return { ...prev, progress: nextProgress };
+      });
+    }, 150);
+
+    try {
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: preparedFile,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Cloudflare R2 upload failed (${res.status}). Try again.`);
+      }
+    } finally {
+      clearInterval(progressInterval);
+    }
+
+    setUploadStatus({
+      id: uploadId,
+      fileName: file.name,
+      fileSize: file.size,
+      compressedSize: preparedFile.size,
+      stage: "done",
+      progress: 100,
+    });
+    onProgress?.(100);
+
+    setTimeout(() => {
+      if (getUploadStatus()?.id === uploadId) {
+        setUploadStatus(null);
+      }
+    }, 2500);
+
+    return { key, publicUrl };
+  } catch (err) {
+    setUploadStatus({
+      id: uploadId,
+      fileName: file.name,
+      fileSize: file.size,
+      stage: "error",
+      progress: 100,
+      error: errorMessage(err),
+    });
+    setTimeout(() => {
+      if (getUploadStatus()?.id === uploadId) {
+        setUploadStatus(null);
+      }
+    }, 4500);
+    throw err;
+  }
+}
+
 /** Whether a picked file should be stored (and rendered) as an image or a video. */
 export function mediaKindOf(file: File): "image" | "video" {
   return file.type.startsWith("video/") ? "video" : "image";

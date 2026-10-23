@@ -24,6 +24,7 @@ import type * as portal from "../portal.js";
 import type * as productCategories from "../productCategories.js";
 import type * as products from "../products.js";
 import type * as profit from "../profit.js";
+import type * as r2 from "../r2.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
 import type * as shared from "../shared.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   productCategories: typeof productCategories;
   products: typeof products;
   profit: typeof profit;
+  r2: typeof r2;
   sales: typeof sales;
   seed: typeof seed;
   shared: typeof shared;

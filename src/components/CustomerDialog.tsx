@@ -6,9 +6,9 @@ import { Button, Field, Input, Modal, ModalFooter, Textarea, cx } from "./ui";
 import { PhoneListField } from "./PhoneListField";
 import { useT } from "../lib/i18n";
 import { errorMessage, useToast } from "../lib/toast";
-import { useAuthedMutation } from "../lib/session";
+import { useAuthedAction, useAuthedMutation } from "../lib/session";
 import { normalisePhone } from "../../convex/shared";
-import { uploadFile, useFileDrop, useUploadProgress } from "../lib/upload";
+import { uploadFileToR2, useFileDrop, useUploadProgress } from "../lib/upload";
 import { avatarThemeFor } from "../lib/avatar";
 
 /** What the dialog needs to edit someone — the list query's shape, not the row's. */
@@ -45,7 +45,7 @@ export function CustomerDialog({
   const toast = useToast();
   const create = useAuthedMutation(api.customers.create);
   const update = useAuthedMutation(api.customers.update);
-  const generateUploadUrl = useAuthedMutation(api.customers.generateUploadUrl);
+  const generateR2UploadUrl = useAuthedAction(api.r2.generateUploadUrl);
   const setPhotoMutation = useAuthedMutation(api.customers.setPhoto);
   const removePhotoMutation = useAuthedMutation(api.customers.removePhoto);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,10 +113,9 @@ export function CustomerDialog({
     }
     setPhotoBusy(true);
     try {
-      const uploadUrl = await generateUploadUrl({});
-      const storageId = await uploadFile(uploadUrl, file);
-      await setPhotoMutation({ id: customer._id, storageId });
-      setSavedPhotoUrl(preview);
+      const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, file, "customers");
+      await setPhotoMutation({ id: customer._id, photoUrl: publicUrl });
+      setSavedPhotoUrl(publicUrl);
       toast.ok(t("contacts.photoUpdated"));
     } catch (err) {
       toast.error(errorMessage(err));
@@ -161,9 +160,8 @@ export function CustomerDialog({
         // A photo picked before the customer existed uploads now, against
         // the id Save just produced.
         if (pendingPhoto) {
-          const uploadUrl = await generateUploadUrl({});
-          const storageId = await uploadFile(uploadUrl, pendingPhoto);
-          await setPhotoMutation({ id, storageId });
+          const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, pendingPhoto, "customers");
+          await setPhotoMutation({ id, photoUrl: publicUrl });
         }
         toast.ok(t("customers.added"));
       }

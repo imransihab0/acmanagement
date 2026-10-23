@@ -30,8 +30,8 @@ import { avatarGradientFor } from "../lib/avatar";
 import { plural } from "../lib/format";
 import { externalUrl, whatsappUrl } from "../../convex/shared";
 import { errorMessage, useToast } from "../lib/toast";
-import { useAuthedMutation, useAuthedQuery } from "../lib/session";
-import { mediaKindOf, uploadFile, useFileDrop, useUploadProgress } from "../lib/upload";
+import { useAuthedAction, useAuthedMutation, useAuthedQuery } from "../lib/session";
+import { mediaKindOf, uploadFileToR2, useFileDrop, useUploadProgress } from "../lib/upload";
 
 
 export function VendorDetailDialog({
@@ -49,7 +49,7 @@ export function VendorDetailDialog({
   const { label, categoryOf, subCategoryOf, allCategories } = useVendorCategories();
   const createFolder = useAuthedMutation(api.vendors.createFolder);
   const removeFolder = useAuthedMutation(api.vendors.removeFolder);
-  const generateUploadUrl = useAuthedMutation(api.vendors.generateUploadUrl);
+  const generateR2UploadUrl = useAuthedAction(api.r2.generateUploadUrl);
   const attachMedia = useAuthedMutation(api.vendors.attachMedia);
   const removeMedia = useAuthedMutation(api.vendors.removeMedia);
   const setPhoto = useAuthedMutation(api.vendors.setPhoto);
@@ -100,12 +100,11 @@ export function VendorDetailDialog({
     if (!vendorId || openFolderId === null) return;
     setUploading(true);
     try {
-      const uploadUrl = await generateUploadUrl({});
-      const storageId = await uploadFile(uploadUrl, file);
+      const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, file, "vendors");
       await attachMedia({
         vendorId,
         folderId: isUnfiledView ? undefined : (openFolderId as Id<"vendorFolders">),
-        storageId,
+        url: publicUrl,
         fileName: file.name,
         kind: mediaKindOf(file),
       });
@@ -178,9 +177,8 @@ export function VendorDetailDialog({
             name={data.vendor.name}
             photoUrl={data.vendor.photoUrl}
             onUpload={async (file) => {
-              const uploadUrl = await generateUploadUrl({});
-              const storageId = await uploadFile(uploadUrl, file);
-              await setPhoto({ id: data.vendor._id, storageId });
+              const { publicUrl } = await uploadFileToR2(generateR2UploadUrl, file, "vendors");
+              await setPhoto({ id: data.vendor._id, photoUrl: publicUrl });
             }}
           />
         ) : (

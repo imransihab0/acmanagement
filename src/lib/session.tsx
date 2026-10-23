@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { api } from "../../convex/_generated/api";
 
@@ -147,6 +147,22 @@ export function useAuthedMutation<Args extends WithToken, Output>(
     (args: Omit<Args, "token">) => {
       if (!token) return Promise.reject(new Error("Not signed in."));
       return run({ ...args, token });
+    },
+    [run, token],
+  );
+}
+
+type OptionalToken = { token?: string };
+
+export function useAuthedAction<Args extends OptionalToken, Output>(
+  reference: FunctionReference<"action", "public", Args, Output>,
+): (args: Omit<Args, "token">) => Promise<Output> {
+  const { token } = useSession();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const run = useAction(reference as any) as (a: unknown) => Promise<Output>;
+  return useCallback(
+    (args: Omit<Args, "token">) => {
+      return run(token ? { ...args, token } : args);
     },
     [run, token],
   );
